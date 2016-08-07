@@ -15,6 +15,8 @@ import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.Charset;
 
 /**
@@ -43,10 +45,17 @@ public class Graph2Graph {
         repo.initialize();
 
         try (RepositoryConnection connection = repo.getConnection()) {
-            File file = new File(graph_path);
-            connection.add(file, base_uri, RDFFormat.TURTLE);
-            String graph_query =
-                    Files.toString(new File(request_path), Charset.defaultCharset());
+
+            // The graph location can be an URL or a local path
+            if (isAnURL(graph_path)) {
+                URL graph_url = new URL(graph_path);
+                connection.add(graph_url, base_uri, RDFFormat.TURTLE);
+            } else {
+                File file = new File(graph_path);
+                connection.add(file, base_uri, RDFFormat.TURTLE);
+            }
+
+            String graph_query = Files.toString(new File(request_path), Charset.defaultCharset());
 
             Model m = Repositories.graphQuery(repo, graph_query, r -> QueryResults.asModel(r));
 
@@ -71,5 +80,13 @@ public class Graph2Graph {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    public static boolean isAnURL(String s) {
+        try {
+            new URL(s);
+        } catch (MalformedURLException e) {
+            return false;
+        }
+        return true;
     }
 }
