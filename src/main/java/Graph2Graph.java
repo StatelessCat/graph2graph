@@ -8,11 +8,12 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.repository.util.Repositories;
 import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.RDFParser;
+import org.eclipse.rdf4j.rio.RDFWriter;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.Charset;
 
 /**
@@ -27,7 +28,8 @@ public class Graph2Graph {
         OptionSet options = parser.parse(args);
 
         if ( !( options.has("graph") && options.has("baseuri") && options.has("request") ) ) {
-            System.err.println("java -jar ./target/graph2graph-0.0.1.jar --graph <graph path> --baseuri <baseuri> --request <sparql construct request path>");
+            System.err.println("java -jar ./target/graph2graph-0.0.1.jar " +
+                    "--graph <graph path> --baseuri <baseuri> --request <sparql construct request path>");
         }
 
         String graph_path = String.valueOf(options.valueOf("graph"));
@@ -39,16 +41,27 @@ public class Graph2Graph {
         Repository repo = new SailRepository(new MemoryStore());
         repo.initialize();
 
-        File file = new File(graph_path);
-
         try (RepositoryConnection connection = repo.getConnection()) {
+            File file = new File(graph_path);
             connection.add(file, base_uri, RDFFormat.TURTLE);
             String graph_query =
                     Files.toString(new File(request_path), Charset.defaultCharset());
 
             Model m = Repositories.graphQuery(repo, graph_query, r -> QueryResults.asModel(r));
 
-            Rio.write(m, System.out, RDFFormat.TURTLE);
+            // TODO remove this workaround. The purpose of this is to ensure each statements having the same subject
+            //  will be grouped.
+            // Write the new graph serialised in JSON-LD to a temporary file
+            final String PATH_OF_TEMP_JSONLD = "/tmp/jsonld";
+            Rio.write(m, new FileOutputStream(PATH_OF_TEMP_JSONLD), RDFFormat.JSONLD);
+
+            // Read the new graph serialised in JSON-LD, parse it, re-serialise it in TURTLE and print it to STDOUT
+            FileInputStream fileInputStream = new FileInputStream(new File(PATH_OF_TEMP_JSONLD));
+            RDFParser rdfParser = Rio.createParser(RDFFormat.JSONLD);
+            RDFWriter rdfWriter = Rio.createWriter(RDFFormat.TURTLE, System.out);
+            rdfParser.setRDFHandler(rdfWriter);
+            rdfParser.parse(fileInputStream, base_uri);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
