@@ -2,6 +2,7 @@ import com.google.common.io.Files;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.query.QueryResults;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
@@ -9,8 +10,8 @@ import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.repository.util.Repositories;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.RDFParser;
-import org.eclipse.rdf4j.rio.RDFWriter;
 import org.eclipse.rdf4j.rio.Rio;
+import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 
 import java.io.*;
@@ -58,9 +59,14 @@ public class Graph2Graph {
             // Read the new graph serialised in JSON-LD, parse it, re-serialise it in TURTLE and print it to STDOUT
             FileInputStream fileInputStream = new FileInputStream(new File(PATH_OF_TEMP_JSONLD));
             RDFParser rdfParser = Rio.createParser(RDFFormat.JSONLD);
-            RDFWriter rdfWriter = Rio.createWriter(RDFFormat.TURTLE, System.out);
-            rdfParser.setRDFHandler(rdfWriter);
+
+            Model model = new LinkedHashModel();
+            model.setNamespace("prov", "http://www.w3.org/ns/prov#");
+            model.setNamespace("xapi", "http://semweb.mmlab.be/ns/tincan2prov/");
+
+            rdfParser.setRDFHandler(new StatementCollector(model));
             rdfParser.parse(fileInputStream, base_uri);
+            Rio.write(model, System.out, RDFFormat.TURTLE);
 
         } catch (IOException e) {
             e.printStackTrace();
